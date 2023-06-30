@@ -2,21 +2,24 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"mapreduce/common"
+	. "mapreduce/common"
 	"net/rpc"
 )
 
+func callRegWorker(client *rpc.Client) {
+	arg := &RegWorkerArg{}
+	var reply RegWorkerReply
+	e := client.Call("Workers.RegWorker", arg, &reply)
+	if e != nil {
+		Fail("client.Call", e)
+	}
+	fmt.Printf("added successfully\n")
+}
+
 func main() {
-	client, e := rpc.DialHTTP("tcp", common.IpAddr+":"+common.Port)
+	client, e := rpc.DialHTTP("tcp", IpAddr+":"+Port)
 	if e != nil {
-		log.Fatal(common.MakeFailMsg("rpc.DialHTTP", e))
+		Fail("rpc.DialHTTP", e)
 	}
-	args := &common.ArgType{Arg: 13}
-	var reply common.ReplyType
-	e = client.Call("Tasks.Demo", args, &reply)
-	if e != nil {
-		log.Fatal(common.MakeFailMsg("client.Call", e))
-	}
-	fmt.Printf("reply: %d\n", reply.Reply)
+	callRegWorker(client)
 }

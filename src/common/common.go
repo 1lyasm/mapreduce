@@ -1,17 +1,18 @@
 package common
 
+import "log"
+
 const (
 	IpAddr string = "192.168.1.7"
 	Port   string = "1234"
 )
 
-func MakeFailMsg(funcName string, e error) string {
-	return funcName + " failed: " + e.Error()
+func Fail(funcName string, e error) {
+	log.Fatal(funcName + " failed: " + e.Error())
 }
 
-type ArgType struct {
-	Arg int
+type RegWorkerArg struct {
 }
-type ReplyType struct {
-	Reply int
+
+type RegWorkerReply struct {
 }

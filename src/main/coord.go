@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"mapreduce/common"
+	. "mapreduce/common"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -21,9 +20,19 @@ type Tasks struct {
 	TaskList []Task
 }
 
-func (tasks *Tasks) Demo(argType common.ArgType, replyType *common.ReplyType) error {
-	fmt.Printf("hooy: %d\n", argType.Arg)
-	replyType.Reply = argType.Arg + 1
+type Workers struct {
+	WorkerIds []int
+}
+
+func (workers *Workers) RegWorker(arg RegWorkerArg,
+	reply *RegWorkerReply) error {
+	if len(workers.WorkerIds) >= 1 {
+		workers.WorkerIds = append(workers.WorkerIds,
+			workers.WorkerIds[len(workers.WorkerIds)-1]+1)
+	} else {
+		workers.WorkerIds = []int{0}
+	}
+	fmt.Println("after registering: ", workers.WorkerIds)
 	return nil
 }
 
@@ -31,11 +40,13 @@ func main() {
 	fileNames := os.Args[1:]
 	fmt.Println(fileNames)
 	tasks := new(Tasks)
+	workers := new(Workers)
 	rpc.Register(tasks)
+	rpc.Register(workers)
 	rpc.HandleHTTP()
-	listener, e := net.Listen("tcp", common.IpAddr+":"+common.Port)
+	listener, e := net.Listen("tcp", IpAddr+":"+Port)
 	if e != nil {
-		log.Fatal(common.MakeFailMsg("net.Listen", e))
+		Fail("net.Listen", e)
 	}
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
