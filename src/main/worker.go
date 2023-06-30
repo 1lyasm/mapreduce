@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	. "mapreduce/common"
 	"net/rpc"
 )
@@ -13,7 +13,7 @@ func callRegWorker(client *rpc.Client) {
 	if e != nil {
 		Fail("client.Call", e)
 	}
-	fmt.Printf("added successfully\n")
+	log.Printf("callRegWorker")
 }
 
 func main() {

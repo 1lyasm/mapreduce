@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	. "mapreduce/common"
 	"net"
 	"net/http"
@@ -35,13 +34,11 @@ func (workers *Workers) RegWorker(arg RegWorkerArg, reply *RegWorkerReply) error
 		newId = 0
 	}
 	workers.WorkerList = append(workers.WorkerList, makeWorker(newId))
-	fmt.Println("after registering: ", workers.WorkerList)
 	return nil
 }
 
 func main() {
 	fileNames := os.Args[1:]
-	fmt.Println(fileNames)
 	workers := new(Workers)
 	rpc.Register(workers)
 	rpc.HandleHTTP()
