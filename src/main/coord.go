@@ -21,11 +21,14 @@ type Tasks struct {
 }
 
 type Workers struct {
+	mu        sync.Mutex
 	WorkerIds []int
 }
 
 func (workers *Workers) RegWorker(arg RegWorkerArg,
 	reply *RegWorkerReply) error {
+	workers.mu.Lock()
+	defer workers.mu.Unlock()
 	if len(workers.WorkerIds) >= 1 {
 		workers.WorkerIds = append(workers.WorkerIds,
 			workers.WorkerIds[len(workers.WorkerIds)-1]+1)
