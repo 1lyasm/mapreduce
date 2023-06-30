@@ -29,19 +29,15 @@ func (tasks *Tasks) Demo(argType ArgType, replyType *ReplyType) error {
 	return nil
 }
 
-func makeFailMsg(funcName string) string {
-	return funcName + " failed"
-}
-
 func main() {
 	fileNames := os.Args[1:]
 	fmt.Println(fileNames)
 	tasks := new(Tasks)
 	rpc.Register(tasks)
 	rpc.HandleHTTP()
-	listener, e := net.Listen("tcp", "127.0.0.1:"+common.Port)
+	listener, e := net.Listen("tcp", common.IpAddr+":"+common.Port)
 	if e != nil {
-		log.Fatal(makeFailMsg("net.Listen"))
+		log.Fatal(common.MakeFailMsg("net.Listen"))
 	}
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
