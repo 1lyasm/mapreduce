@@ -8,43 +8,41 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"time"
 )
 
-type Task struct {
-	File     string
-	State    int
-	WorkerId int
-}
-
-type Tasks struct {
-	TaskList []Task
+type Worker struct {
+	Id       int
+	LastSeen time.Time
 }
 
 type Workers struct {
-	mu        sync.Mutex
-	WorkerIds []int
+	mu         sync.Mutex
+	WorkerList []Worker
 }
 
-func (workers *Workers) RegWorker(arg RegWorkerArg,
-	reply *RegWorkerReply) error {
+func makeWorker(id int) Worker {
+	return Worker{Id: id, LastSeen: time.Now()}
+}
+
+func (workers *Workers) RegWorker(arg RegWorkerArg, reply *RegWorkerReply) error {
 	workers.mu.Lock()
 	defer workers.mu.Unlock()
-	if len(workers.WorkerIds) >= 1 {
-		workers.WorkerIds = append(workers.WorkerIds,
-			workers.WorkerIds[len(workers.WorkerIds)-1]+1)
+	var newId int
+	if len(workers.WorkerList) >= 1 {
+		newId = workers.WorkerList[len(workers.WorkerList)-1].Id + 1
 	} else {
-		workers.WorkerIds = []int{0}
+		newId = 0
 	}
-	fmt.Println("after registering: ", workers.WorkerIds)
+	workers.WorkerList = append(workers.WorkerList, makeWorker(newId))
+	fmt.Println("after registering: ", workers.WorkerList)
 	return nil
 }
 
 func main() {
 	fileNames := os.Args[1:]
 	fmt.Println(fileNames)
-	tasks := new(Tasks)
 	workers := new(Workers)
-	rpc.Register(tasks)
 	rpc.Register(workers)
 	rpc.HandleHTTP()
 	listener, e := net.Listen("tcp", IpAddr+":"+Port)
