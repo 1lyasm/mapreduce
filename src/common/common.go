@@ -27,4 +27,5 @@ type UpdateLastSeenArg struct {
 }
 
 type UpdateLastSeenReply struct {
+	ErrorCode int
 }
