@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+if [[ $1 == "-v" ]]
+    then go run -race worker.go $1
+else
+    go run -race worker.go
+fi
