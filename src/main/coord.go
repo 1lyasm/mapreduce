@@ -73,12 +73,14 @@ func (workers *Workers) UpdateLastSeen(arg UpdateLastSeenArg,
 	reply *UpdateLastSeenReply) error {
 	workers.mu.Lock()
 	defer workers.mu.Unlock()
+	reply.ErrorCode = 0
 	seenWorker := findWorkerById(workers, arg.Id)
 	if seenWorker == nil {
-		return fmt.Errorf("unknown worker sent heartbeat")
+		reply.ErrorCode = 1
+	} else {
+		seenWorker.LastSeen = arg.LastSeen
+		log.Printf("UpdateLastSeen: %d", arg.Id)
 	}
-	seenWorker.LastSeen = arg.LastSeen
-	log.Printf("UpdateLastSeen: %d", arg.Id)
 	return nil
 }
 
