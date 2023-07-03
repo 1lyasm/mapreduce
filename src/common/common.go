@@ -1,10 +1,13 @@
 package common
 
-import "log"
+import (
+	"log"
+	"time"
+)
 
 const (
-	IpAddr string = "192.168.1.7"
-	Port   string = "1234"
+	HostIp string = "192.168.1.12"
+	Port          = "1234"
 )
 
 func Fail(funcName string, e error) {
@@ -15,4 +18,13 @@ type RegWorkerArg struct {
 }
 
 type RegWorkerReply struct {
+	Id int
+}
+
+type UpdateLastSeenArg struct {
+	Id       int
+	LastSeen time.Time
+}
+
+type UpdateLastSeenReply struct {
 }
