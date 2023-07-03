@@ -12,7 +12,7 @@ import (
 
 func callRegWorker(client *rpc.Client) int {
 	arg := &RegWorkerArg{}
-	var reply RegWorkerReply
+	reply := RegWorkerReply{}
 	e := client.Call("Workers.RegWorker", arg, &reply)
 	if e != nil {
 		Fail("client.Call", e)
@@ -23,7 +23,7 @@ func callRegWorker(client *rpc.Client) int {
 
 func callUpdateLastSeen(client *rpc.Client, id int) {
 	arg := &UpdateLastSeenArg{Id: id, LastSeen: time.Now()}
-	var reply UpdateLastSeenReply
+	reply := UpdateLastSeenReply{}
 	e := client.Call("Workers.UpdateLastSeen", arg, &reply)
 	if e != nil {
 		Fail("client.Call", e)
