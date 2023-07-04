@@ -56,8 +56,11 @@ func sendHeartbeat(client *rpc.Client, id int, wg *sync.WaitGroup,
 		}
 		time.Sleep(time.Second)
 	}
-	wg.Done()
 	status.code = 1
+}
+
+func requestTasks(wg *sync.WaitGroup) {
+	wg.Done()
 }
 
 func main() {
@@ -79,7 +82,10 @@ func main() {
 			sendHeartbeat(client, Id, &wg, &status)
 			status.mu.Unlock()
 			log.Print("main: restarting worker")
+			wg.Done()
 		}()
+		wg.Add(1)
+		go requestTasks(&wg)
 		wg.Wait()
 	}
 }
