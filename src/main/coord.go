@@ -23,6 +23,20 @@ type Workers struct {
 	WorkerList []Worker
 }
 
+type Task struct {
+	File string
+}
+
+type Tasks struct {
+	List []Task
+}
+
+func (tasks *Tasks) fillTasks(files []string) {
+	for i := 0; i < len(files); i += 1 {
+		tasks.List = append(tasks.List, Task{File: files[i]})
+	}
+}
+
 func (workers *Workers) String() string {
 	output := ""
 	for i := 0; i < len(workers.WorkerList); i += 1 {
@@ -119,20 +133,23 @@ func cleanWorkerPeriodic(workers *Workers, periodSec int, timeoutSec int) {
 }
 
 func main() {
-	var fileNames []string
+	var files []string
 	if len(os.Args) >= 2 && os.Args[1] == "-v" {
-		fileNames = os.Args[2:]
+		files = os.Args[2:]
 	} else {
 		log.SetOutput(io.Discard)
-		fileNames = os.Args[1:]
+		files = os.Args[1:]
 	}
-	log.Printf("fileNames: %s", fileNames)
+	log.Printf("main: files: %s", files)
 	workers := new(Workers)
 	rpc.Register(workers)
+	tasks := new(Tasks)
+	tasks.fillTasks(files)
+	rpc.Register(tasks)
 	rpc.HandleHTTP()
 	listener, e := net.Listen("tcp", HostIp+":"+Port)
 	if e != nil {
-		Fail("net.Listen", e)
+		Fail("main: net.Listen", e)
 	}
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
