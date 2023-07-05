@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	HostIp string = "192.168.1.12"
+	HostIp string = "192.168.1.106"
 	Port          = "1234"
 )
 
