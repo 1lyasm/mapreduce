@@ -59,7 +59,7 @@ func (workers *Workers) getMaxId() int {
 	return maxId
 }
 
-func (workers *Workers) RegWorker(arg RegWorkerArg, reply *RegWorkerReply) error {
+func (workers *Workers) RegWorker(arg RegWorkerArg, reply *RegWorkerRep) error {
 	workers.mu.Lock()
 	defer workers.mu.Unlock()
 	var newId int
@@ -84,13 +84,13 @@ func findWorkerById(workers *Workers, id int) *Worker {
 }
 
 func (workers *Workers) UpdateLastSeen(arg UpdateLastSeenArg,
-	reply *UpdateLastSeenReply) error {
+	reply *UpdateLastSeenRep) error {
 	workers.mu.Lock()
 	defer workers.mu.Unlock()
-	reply.ErrorCode = 0
+	reply.Code = 0
 	seenWorker := findWorkerById(workers, arg.Id)
 	if seenWorker == nil {
-		reply.ErrorCode = 1
+		reply.Code = 1
 	} else {
 		seenWorker.LastSeen = arg.LastSeen
 		log.Printf("UpdateLastSeen: %d", arg.Id)
@@ -130,6 +130,11 @@ func cleanWorkerPeriodic(workers *Workers, periodSec int, timeoutSec int) {
 		}
 		time.Sleep(dur)
 	}
+}
+
+func (workers *Workers) GetTask(arg GetTaskArg, rep *GetTaskRep) error {
+	rep.Code = 0
+	return nil
 }
 
 func main() {

@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	HostIp string = "192.168.1.106"
-	Port          = "1234"
+	HostIp = "192.168.1.106"
+	Port   = "1234"
 )
 
 func Fail(funcName string, e error) {
@@ -17,7 +17,7 @@ func Fail(funcName string, e error) {
 type RegWorkerArg struct {
 }
 
-type RegWorkerReply struct {
+type RegWorkerRep struct {
 	Id int
 }
 
@@ -26,6 +26,15 @@ type UpdateLastSeenArg struct {
 	LastSeen time.Time
 }
 
-type UpdateLastSeenReply struct {
-	ErrorCode int
+type UpdateLastSeenRep struct {
+	Code int
+}
+
+type GetTaskArg struct {
+	Id int
+}
+
+type GetTaskRep struct {
+	Code int
+	File string
 }
