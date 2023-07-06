@@ -45,6 +45,7 @@ type Tasks struct {
 type Coordinator struct {
 	workers *Workers
 	tasks   *Tasks
+	nRed    int
 }
 
 func (c *Coordinator) server() {
@@ -143,7 +144,8 @@ func (c *Coordinator) RegW(arg *RegWArg, rep *RegWRep) error {
 	}
 	c.workers.List = append(c.workers.List, Worker{Id: newId, Last: time.Now()})
 	rep.Id = newId
-	log.Printf("RegW: %s", c.workers.Str())
+	rep.NRed = c.nRed
+	log.Printf("RegW: %s, nRed: %d", c.workers.Str(), rep.NRed)
 	return nil
 }
 
@@ -165,6 +167,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c.tasks = new(Tasks)
 	c.tasks.fill(files)
 	c.workers = new(Workers)
+	c.nRed = nReduce
 	go c.clean()
 	c.server()
 	return &c

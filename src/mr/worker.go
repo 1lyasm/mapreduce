@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/rpc"
 	"os"
+	"sort"
 	"sync"
 	"time"
 )
@@ -14,6 +15,12 @@ type KeyValue struct {
 	Key   string
 	Value string
 }
+
+type ByKey []KeyValue
+
+func (a ByKey) Len() int           { return len(a) }
+func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
 func call(rpcname string, args interface{}, reply interface{}) bool {
 	// c, err := rpc.DialHTTP("tcp", "127.0.0.1"+":1234")
@@ -46,17 +53,21 @@ func heartb(id int) {
 	}
 }
 
-func reg() int {
+func reg() (int, int) {
 	arg, rep := &RegWArg{}, RegWRep{}
 	e := call("Coordinator.RegW", arg, &rep)
 	if !e {
 		Fail("reg: call", nil)
 	}
-	log.Printf("reg: id: %d", rep.Id)
-	return rep.Id
+	log.Printf("reg: id: %d, nRed: %d", rep.Id, rep.NRed)
+	return rep.Id, rep.NRed
 }
 
-func doTask(id int, mapf func(string, string) []KeyValue, redf func(string, []string) string) {
+func writeKva(kva []KeyValue, nRed int) {
+
+}
+
+func doTask(id int, nRed int, mapf func(string, string) []KeyValue, redf func(string, []string) string) {
 	for {
 		arg, rep := &GetTArg{Id: id}, GetTRep{}
 		e := call("Coordinator.GetT", arg, &rep)
@@ -72,7 +83,9 @@ func doTask(id int, mapf func(string, string) []KeyValue, redf func(string, []st
 		}
 		f := string(bytes[:])
 		if rep.Type == TaskM {
-			mapf("", f)
+			kva := mapf("", f)
+			sort.Sort(ByKey(kva))
+			writeKva(kva, nRed)
 		}
 	}
 }
@@ -91,7 +104,7 @@ func ihash(key string) int {
 
 func RunW(mapf func(string, string) []KeyValue,
 	redf func(string, []string) string) {
-	id := reg()
+	id, nRed := reg()
 	ch := make(chan int)
 	doneCnt := 0
 	muDone := sync.Mutex{}
@@ -102,7 +115,7 @@ func RunW(mapf func(string, string) []KeyValue,
 		incAtom(&doneCnt, &muDone)
 	}()
 	go func() {
-		doTask(id, mapf, redf)
+		doTask(id, nRed, mapf, redf)
 		log.Print("RunW: completed tasks")
 		ch <- 2
 		incAtom(&doneCnt, &muDone)

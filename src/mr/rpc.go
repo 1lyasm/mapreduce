@@ -10,7 +10,8 @@ import (
 type RegWArg struct{}
 
 type RegWRep struct {
-	Id int
+	Id   int
+	NRed int
 }
 
 type HbArg struct {
