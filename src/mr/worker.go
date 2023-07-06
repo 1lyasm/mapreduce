@@ -7,7 +7,6 @@ import (
 	"net/rpc"
 	"os"
 	"os/exec"
-	"plugin"
 	"sync"
 	"time"
 )
@@ -83,24 +82,6 @@ func incAtom(a *int, mu *sync.Mutex) {
 	mu.Lock()
 	*a = *a + 1
 	mu.Unlock()
-}
-
-func loadPlu(f string) (func(string, string) KeyVal, func(string, []string) string) {
-	p, e := plugin.Open(f)
-	if e != nil {
-		Fail("loadPlu: plugin.Open", e)
-	}
-	mapfPtr, e := p.Lookup("Map")
-	if e != nil {
-		Fail("loadPlu: p.Lookup", e)
-	}
-	mapf := mapfPtr.(func(string, string) KeyVal)
-	redfPtr, e := p.Lookup("Reduce")
-	if e != nil {
-		Fail("loadPlu: p.Lookup", e)
-	}
-	redf := redfPtr.(func(string, []string) string)
-	return mapf, redf
 }
 
 func main() {
