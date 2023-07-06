@@ -1,40 +1,43 @@
-package common
+package mr
 
 import (
 	"log"
+	"os"
+	"strconv"
 	"time"
 )
 
-const (
-	HostIp = "192.168.1.106"
-	Port   = "1234"
-)
+type RegWArg struct{}
 
-func Fail(funcName string, e error) {
-	log.Fatal(funcName + " failed: " + e.Error())
-}
-
-type RegWorkerArg struct {
-}
-
-type RegWorkerRep struct {
+type RegWRep struct {
 	Id int
 }
 
-type UpdateLastSeenArg struct {
-	Id       int
-	LastSeen time.Time
+type HbArg struct {
+	Id   int
+	Last time.Time
 }
 
-type UpdateLastSeenRep struct {
+type HbRep struct {
 	Code int
 }
 
-type GetTaskArg struct {
+type GetTArg struct {
 	Id int
 }
 
-type GetTaskRep struct {
+type GetTRep struct {
 	Code int
 	File string
+	Type int
+}
+
+func coordinatorSock() string {
+	s := "/var/tmp/5840-mr-"
+	s += strconv.Itoa(os.Getuid())
+	return s
+}
+
+func Fail(f string, e error) {
+	log.Fatal(f + " failed: " + e.Error())
 }

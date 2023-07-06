@@ -1,10 +1,8 @@
-package main
+package mr
 
 import (
 	"fmt"
-	"io"
 	"log"
-	. "mapreduce/common"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -13,156 +11,161 @@ import (
 	"time"
 )
 
+const (
+	TaskFree = 0
+	TaskLive = 1
+	TaskDone = 2
+)
+
+const (
+	TaskM = 0
+	TaskR = 1
+)
+
 type Worker struct {
-	Id       int
-	LastSeen time.Time
+	Id   int
+	Last time.Time
 }
 
 type Workers struct {
-	mu         sync.Mutex
-	WorkerList []Worker
+	mu   sync.Mutex
+	List []Worker
 }
 
 type Task struct {
 	File string
+	Stat int
+	Type int
 }
 
 type Tasks struct {
 	List []Task
 }
 
-func (tasks *Tasks) fillTasks(files []string) {
+type Coordinator struct {
+	workers *Workers
+	tasks   *Tasks
+}
+
+func (c *Coordinator) server() {
+	rpc.Register(c)
+	rpc.HandleHTTP()
+	//l, e := net.Listen("tcp", ":1234")
+	sockname := coordinatorSock()
+	os.Remove(sockname)
+	l, e := net.Listen("unix", sockname)
+	if e != nil {
+		log.Fatal("listen error:", e)
+	}
+	go http.Serve(l, nil)
+}
+
+func (c *Coordinator) Done() bool {
+	ret := false
+	return ret
+}
+
+func (tasks *Tasks) fill(files []string) {
 	for i := 0; i < len(files); i += 1 {
-		tasks.List = append(tasks.List, Task{File: files[i]})
+		tasks.List = append(tasks.List,
+			Task{File: files[i], Stat: TaskFree, Type: TaskM})
 	}
 }
 
-func (workers *Workers) String() string {
+func (workers *Workers) Str() string {
 	output := ""
-	for i := 0; i < len(workers.WorkerList); i += 1 {
-		output += fmt.Sprintf("%d ", workers.WorkerList[i].Id)
+	for i := 0; i < len(workers.List); i += 1 {
+		output += fmt.Sprintf("%d ", workers.List[i].Id)
 	}
 	return fmt.Sprintf("workers: [ %s]", output)
 }
 
-func makeWorker(id int) Worker {
-	return Worker{Id: id, LastSeen: time.Now()}
+func (c *Coordinator) clean() {
+	period, timeout := time.Duration(time.Second), time.Duration(10*time.Second)
+	for {
+		c.workers.mu.Lock()
+		now := time.Now()
+		for i := 0; i < len(c.workers.List); i += 1 {
+			if now.Sub(c.workers.List[i].Last).Milliseconds() >
+				(timeout - period).Milliseconds() {
+				log.Printf("clean: %d", c.workers.List[i].Id)
+				c.workers.List[i] = c.workers.List[len(c.workers.List)-1]
+				c.workers.List = c.workers.List[:len(c.workers.List)-1]
+			}
+			if len(c.workers.List) == 0 {
+				break
+			}
+		}
+		c.workers.mu.Unlock()
+		log.Printf("clean: %s", c.workers.Str())
+		time.Sleep(period)
+	}
 }
 
-func (workers *Workers) getMaxId() int {
-	maxId := -1
-	for i := 0; i < len(workers.WorkerList); i += 1 {
-		if workers.WorkerList[i].Id > maxId {
-			maxId = workers.WorkerList[i].Id
+func (c *Coordinator) Heartb(arg *HbArg, rep *HbRep) error {
+	c.workers.mu.Lock()
+	defer c.workers.mu.Unlock()
+	rep.Code = 0
+	var w *Worker
+	w = nil
+	for i := 0; i < len(c.workers.List); i += 1 {
+		if c.workers.List[i].Id == arg.Id {
+			w = &c.workers.List[i]
 		}
 	}
-	return maxId
+	if w == nil {
+		rep.Code = 1
+	} else {
+		w.Last = arg.Last
+		log.Printf("Heartb: %d", arg.Id)
+	}
+	return nil
 }
 
-func (workers *Workers) RegWorker(arg RegWorkerArg, reply *RegWorkerRep) error {
-	workers.mu.Lock()
-	defer workers.mu.Unlock()
+func (workers *Workers) maxId() int {
+	max := -1
+	for i := 0; i < len(workers.List); i += 1 {
+		if workers.List[i].Id > max {
+			max = workers.List[i].Id
+		}
+	}
+	return max
+}
+
+func (c *Coordinator) RegW(arg *RegWArg, rep *RegWRep) error {
+	c.workers.mu.Lock()
+	defer c.workers.mu.Unlock()
 	var newId int
-	if len(workers.WorkerList) >= 1 {
-		newId = workers.getMaxId() + 1
+	if len(c.workers.List) >= 1 {
+		newId = c.workers.maxId() + 1
 	} else {
 		newId = 0
 	}
-	workers.WorkerList = append(workers.WorkerList, makeWorker(newId))
-	reply.Id = newId
-	log.Printf("RegWorker: %s", workers.String())
+	c.workers.List = append(c.workers.List, Worker{Id: newId, Last: time.Now()})
+	rep.Id = newId
+	log.Printf("RegW: %s", c.workers.Str())
 	return nil
 }
 
-func findWorkerById(workers *Workers, id int) *Worker {
-	for i := 0; i < len(workers.WorkerList); i += 1 {
-		if workers.WorkerList[i].Id == id {
-			return &workers.WorkerList[i]
+func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
+	rep.Code = 1
+	for _, t := range c.tasks.List {
+		if t.Stat == TaskFree {
+			rep.Code = 0
+			rep.File = t.File
+			rep.Type = t.Type
+			break
 		}
 	}
 	return nil
 }
 
-func (workers *Workers) UpdateLastSeen(arg UpdateLastSeenArg,
-	reply *UpdateLastSeenRep) error {
-	workers.mu.Lock()
-	defer workers.mu.Unlock()
-	reply.Code = 0
-	seenWorker := findWorkerById(workers, arg.Id)
-	if seenWorker == nil {
-		reply.Code = 1
-	} else {
-		seenWorker.LastSeen = arg.LastSeen
-		log.Printf("UpdateLastSeen: %d", arg.Id)
-	}
-	return nil
-}
-
-func secToMilli(s int) int {
-	return s * 1000
-}
-
-func cleanWorker(workers *Workers, periodSec int, timeoutSec int) int {
-	workers.mu.Lock()
-	defer workers.mu.Unlock()
-	now := time.Now()
-	for i := 0; i < len(workers.WorkerList); i += 1 {
-		if int(now.Sub(workers.WorkerList[i].LastSeen).Milliseconds()) >
-			secToMilli(timeoutSec-periodSec) {
-			log.Printf("cleanWorker: cleaning %d", workers.WorkerList[i].Id)
-			workers.WorkerList[i] = workers.WorkerList[len(workers.WorkerList)-1]
-			workers.WorkerList = workers.WorkerList[:len(workers.WorkerList)-1]
-			if len(workers.WorkerList) == 0 {
-				return 1
-			}
-		}
-	}
-	log.Printf("cleanWorker: %s", workers.String())
-	return 0
-}
-
-func cleanWorkerPeriodic(workers *Workers, periodSec int, timeoutSec int) {
-	for {
-		cleanWorker(workers, periodSec, timeoutSec)
-		dur, e := time.ParseDuration(fmt.Sprintf("%d", periodSec) + "s")
-		if e != nil {
-			Fail("time.ParseDuration", e)
-		}
-		time.Sleep(dur)
-	}
-}
-
-func (workers *Workers) GetTask(arg GetTaskArg, rep *GetTaskRep) error {
-	rep.Code = 0
-	return nil
-}
-
-func main() {
-	var files []string
-	if len(os.Args) >= 2 && os.Args[1] == "-v" {
-		files = os.Args[2:]
-	} else {
-		log.SetOutput(io.Discard)
-		files = os.Args[1:]
-	}
-	log.Printf("main: files: %s", files)
-	workers := new(Workers)
-	rpc.Register(workers)
-	tasks := new(Tasks)
-	tasks.fillTasks(files)
-	rpc.Register(tasks)
-	rpc.HandleHTTP()
-	listener, e := net.Listen("tcp", HostIp+":"+Port)
-	if e != nil {
-		Fail("main: net.Listen", e)
-	}
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		http.Serve(listener, nil)
-		wg.Done()
-	}()
-	periodSec, timeoutSec := 1, 10
-	go cleanWorkerPeriodic(workers, periodSec, timeoutSec)
-	wg.Wait()
+func MakeCoordinator(files []string, nReduce int) *Coordinator {
+	c := Coordinator{}
+	c.tasks = new(Tasks)
+	c.tasks.fill(files)
+	c.workers = new(Workers)
+	go c.clean()
+	c.server()
+	return &c
 }

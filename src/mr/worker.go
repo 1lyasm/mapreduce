@@ -1,79 +1,78 @@
-package main
+package mr
 
 import (
-	"io"
+	"fmt"
+	"hash/fnv"
 	"log"
-	. "mapreduce/common"
 	"net/rpc"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
 )
 
-type KeyVal struct {
-	Key string
-	Val string
+type KeyValue struct {
+	Key   string
+	Value string
 }
 
-func regWorker(client *rpc.Client) int {
-	arg := &RegWorkerArg{}
-	reply := RegWorkerRep{}
-	e := client.Call("Workers.RegWorker", arg, &reply)
-	if e != nil {
-		Fail("regWorker: client.Call", e)
+func call(rpcname string, args interface{}, reply interface{}) bool {
+	// c, err := rpc.DialHTTP("tcp", "127.0.0.1"+":1234")
+	sockname := coordinatorSock()
+	c, err := rpc.DialHTTP("unix", sockname)
+	if err != nil {
+		log.Fatal("dialing:", err)
 	}
-	log.Printf("regWorker: registered, id: %d", reply.Id)
-	return reply.Id
+	defer c.Close()
+	err = c.Call(rpcname, args, reply)
+	if err == nil {
+		return true
+	}
+	fmt.Println(err)
+	return false
 }
 
-func updateLastSeen(client *rpc.Client, id int) int {
-	arg := &UpdateLastSeenArg{Id: id, LastSeen: time.Now()}
-	reply := UpdateLastSeenRep{}
-	e := client.Call("Workers.UpdateLastSeen", arg, &reply)
-	if e != nil {
-		Fail("updateLastSeen: client.Call", e)
-	}
-	if reply.Code == 1 {
-		return 1
-	}
-	log.Printf("updateLastSeen: updated")
-	return 0
-}
-
-func heartbeat(client *rpc.Client, id int) {
+func heartb(id int) {
 	for {
-		e := updateLastSeen(client, id)
-		if e == 1 {
-			return
+		arg, rep := &HbArg{Id: id, Last: time.Now()}, HbRep{}
+		e := call("Coordinator.Heartb", arg, &rep)
+		if !e {
+			Fail("heartb: call", nil)
 		}
+		if rep.Code == 1 {
+			break
+		}
+		log.Printf("heartb: sent")
 		time.Sleep(time.Second)
 	}
 }
 
-func doTask(cl *rpc.Client, id int) int {
-	arg, rep := &GetTaskArg{Id: id}, GetTaskRep{}
-	e := cl.Call("Workers.GetTask", arg, &rep)
-	if e != nil {
-		Fail("doTask: cl.Call", e)
+func reg() int {
+	arg, rep := &RegWArg{}, RegWRep{}
+	e := call("Coordinator.RegW", arg, &rep)
+	if !e {
+		Fail("reg: call", nil)
 	}
-	if rep.Code == 1 {
-		return 1
-	}
-	bytes, e := os.ReadFile(rep.File)
-	if e != nil {
-		Fail("doTask: os.ReadFile", e)
-	}
-	f := string(bytes[:])
-	log.Printf("f: %s", f)
-	return 0
+	log.Printf("reg: id: %d", rep.Id)
+	return rep.Id
 }
 
-func doTasks(cl *rpc.Client, id int) {
+func doTask(id int, mapf func(string, string) []KeyValue, redf func(string, []string) string) {
 	for {
-		e := doTask(cl, id)
-		if e == 1 {
-			return
+		arg, rep := &GetTArg{Id: id}, GetTRep{}
+		e := call("Coordinator.GetT", arg, &rep)
+		if !e {
+			Fail("doTask: call", nil)
+		}
+		if rep.Code == 1 {
+			break
+		}
+		bytes, err := os.ReadFile(rep.File)
+		if err != nil {
+			Fail("doTask: os.ReadFile", err)
+		}
+		f := string(bytes[:])
+		if rep.Type == TaskM {
+			mapf("", f)
 		}
 	}
 }
@@ -84,33 +83,27 @@ func incAtom(a *int, mu *sync.Mutex) {
 	mu.Unlock()
 }
 
-func main() {
-	var pluFile string
-	if len(os.Args) < 2 || os.Args[1] != "-v" {
-		log.SetOutput(io.Discard)
-		pluFile = os.Args[1]
-	} else {
-		pluFile = os.Args[2]
-	}
-	mapf, reducef := loadPlu(pluFile)
-	log.Printf("mapf: %v, reducef: %v", mapf, reducef)
-	cl, e := rpc.DialHTTP("tcp", HostIp+":"+Port)
-	if e != nil {
-		Fail("main: rpc.DialHTTP", e)
-	}
-	id := regWorker(cl)
+func ihash(key string) int {
+	h := fnv.New32a()
+	h.Write([]byte(key))
+	return int(h.Sum32() & 0x7fffffff)
+}
+
+func RunW(mapf func(string, string) []KeyValue,
+	redf func(string, []string) string) {
+	id := reg()
 	ch := make(chan int)
 	doneCnt := 0
 	muDone := sync.Mutex{}
 	go func() {
-		heartbeat(cl, id)
-		log.Print("main: heartbeat error, restarting worker")
+		heartb(id)
+		log.Print("RunW: heartb error, restarting worker")
 		ch <- 1
 		incAtom(&doneCnt, &muDone)
 	}()
 	go func() {
-		doTasks(cl, id)
-		log.Print("main: completed tasks")
+		doTask(id, mapf, redf)
+		log.Print("RunW: completed tasks")
 		ch <- 2
 		incAtom(&doneCnt, &muDone)
 	}()
@@ -121,10 +114,6 @@ func main() {
 	}
 	muDone.Unlock()
 	if done == 1 {
-		cmd := exec.Command("/usr/bin/bash", "-c", "./worker")
-		e = cmd.Start()
-		if e != nil {
-			Fail("main: Start", e)
-		}
+		RunW(mapf, redf)
 	}
 }
