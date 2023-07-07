@@ -151,11 +151,12 @@ func (c *Coordinator) RegW(arg *RegWArg, rep *RegWRep) error {
 
 func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 	rep.Code = 1
-	for _, t := range c.tasks.List {
+	for i, t := range c.tasks.List {
 		if t.Stat == TaskFree {
 			rep.Code = 0
 			rep.File = t.File
 			rep.Type = t.Type
+			c.tasks.List[i].Stat = TaskLive // keep track
 			break
 		}
 	}
