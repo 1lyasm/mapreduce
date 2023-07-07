@@ -63,8 +63,28 @@ func reg() (int, int) {
 	return rep.Id, rep.NRed
 }
 
-func writeKva(kva []KeyValue, nRed int) {
+type KeyVals struct {
+	Key  string
+	Vals []string
+}
 
+func combine(kva []KeyValue) []KeyVals {
+	var keyValsA []KeyVals
+	for i := 0; i < len(kva); i += 1 {
+		key := kva[i].Key
+		j := i
+		var vals []string
+		for ; j < len(kva) && kva[j].Key == key; j += 1 {
+			vals = append(vals, kva[j].Value)
+		}
+		i = j + 1
+		keyValsA = append(keyValsA, KeyVals{Key: key, Vals: vals})
+	}
+	return keyValsA
+}
+
+func writeKva(kva []KeyValue, nRed int) {
+	combined := combine(kva)
 }
 
 func doTask(id int, nRed int, mapf func(string, string) []KeyValue, redf func(string, []string) string) {
