@@ -36,9 +36,11 @@ type Task struct {
 	File string
 	Stat int
 	Type int
+	Num  int
 }
 
 type Tasks struct {
+	mu   sync.Mutex
 	List []Task
 }
 
@@ -69,7 +71,7 @@ func (c *Coordinator) Done() bool {
 func (tasks *Tasks) fill(files []string) {
 	for i := 0; i < len(files); i += 1 {
 		tasks.List = append(tasks.List,
-			Task{File: files[i], Stat: TaskFree, Type: TaskM})
+			Task{File: files[i], Stat: TaskFree, Type: TaskM, Num: i})
 	}
 }
 
@@ -150,12 +152,15 @@ func (c *Coordinator) RegW(arg *RegWArg, rep *RegWRep) error {
 }
 
 func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
+	c.tasks.mu.Lock()
+	defer c.tasks.mu.Unlock()
 	rep.Code = 1
 	for i, t := range c.tasks.List {
 		if t.Stat == TaskFree {
 			rep.Code = 0
 			rep.File = t.File
 			rep.Type = t.Type
+			rep.Num = t.Num
 			c.tasks.List[i].Stat = TaskLive // keep track
 			break
 		}

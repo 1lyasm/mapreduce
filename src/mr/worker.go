@@ -1,6 +1,7 @@
 package mr
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"log"
@@ -14,6 +15,11 @@ import (
 type KeyValue struct {
 	Key   string
 	Value string
+}
+
+type MergedKey struct {
+	Key  string
+	Vals []string
 }
 
 type ByKey []KeyValue
@@ -63,13 +69,8 @@ func reg() (int, int) {
 	return rep.Id, rep.NRed
 }
 
-type KeyVals struct {
-	Key  string
-	Vals []string
-}
-
-func combine(kva []KeyValue) []KeyVals {
-	var keyValsA []KeyVals
+func combine(kva []KeyValue) *[]MergedKey {
+	keys := new([]MergedKey)
 	for i := 0; i < len(kva); i += 1 {
 		key := kva[i].Key
 		j := i
@@ -78,16 +79,73 @@ func combine(kva []KeyValue) []KeyVals {
 			vals = append(vals, kva[j].Value)
 		}
 		i = j + 1
-		keyValsA = append(keyValsA, KeyVals{Key: key, Vals: vals})
+		*keys = append(*keys, MergedKey{Key: key, Vals: vals})
 	}
-	return keyValsA
+	return keys
 }
 
-func writeKva(kva []KeyValue, nRed int) {
-	combined := combine(kva)
+func bucket(keys *[]MergedKey, nRed int) *[][]MergedKey {
+	bucks := new([][]MergedKey)
+	size := len(*keys)
+	wid, rem := size/nRed, size%nRed
+	for i := 0; i < nRed; i += 1 {
+		*bucks = append(*bucks, (*keys)[i*wid:(i+1)*wid])
+	}
+	for i := size - rem; i < size; i += 1 {
+		bNum := nRed - rem + i - size
+		(*bucks)[bNum] = append((*bucks)[bNum], (*keys)[i])
+	}
+	return bucks
 }
 
-func doTask(id int, nRed int, mapf func(string, string) []KeyValue, redf func(string, []string) string) {
+func doMap(f string, mapf func(string, string) []KeyValue, nRed int, tNum int) {
+	bytes, e := os.ReadFile(f)
+	if e != nil {
+		Fail("doTask: os.ReadFile", e)
+	}
+	kva := mapf("", string(bytes[:]))
+	sort.Sort(ByKey(kva))
+	bucks := bucket(combine(kva), nRed)
+	for i := 0; i < nRed; i += 1 {
+		f, e := os.Create(fmt.Sprintf("mr-%d-%d", tNum, i))
+		if e != nil {
+			Fail("write: os.Create", e)
+		}
+		enc := json.NewEncoder(f)
+		enc.Encode((*bucks)[i])
+	}
+}
+
+func read(keys *[]MergedKey, fName string) {
+	f, e := os.Open(fName)
+	if e != nil {
+		Fail("read: os.Open", e)
+	}
+	dec := json.NewDecoder(f)
+	key := new(MergedKey)
+	for {
+		e := dec.Decode(key)
+		if e != nil {
+			Fail("read: dec.Decode", e)
+		}
+		*keys = append(*keys, *key)
+	}
+}
+
+func doRed(redf func(string, []string) string, fName string, tNum int) {
+	keys := new([]MergedKey)
+	read(keys, fName)
+	f, e := os.Create(fmt.Sprintf("mr-out-%d", tNum))
+	if e != nil {
+		Fail("doRead: os.Create", e)
+	}
+	for _, key := range *keys {
+		fmt.Fprintf(f, "%v %v\n", key.Key, redf(key.Key, key.Vals))
+	}
+}
+
+func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
+	redf func(string, []string) string) {
 	for {
 		arg, rep := &GetTArg{Id: id}, GetTRep{}
 		e := call("Coordinator.GetT", arg, &rep)
@@ -97,15 +155,10 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue, redf func(st
 		if rep.Code == 1 {
 			break
 		}
-		bytes, err := os.ReadFile(rep.File)
-		if err != nil {
-			Fail("doTask: os.ReadFile", err)
-		}
-		f := string(bytes[:])
 		if rep.Type == TaskM {
-			kva := mapf("", f)
-			sort.Sort(ByKey(kva))
-			writeKva(kva, nRed)
+			doMap(rep.File, mapf, nRed, rep.Num)
+		} else {
+			doRed(redf, rep.File, rep.Num)
 		}
 	}
 }

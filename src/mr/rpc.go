@@ -31,6 +31,7 @@ type GetTRep struct {
 	Code int
 	File string
 	Type int
+	Num  int
 }
 
 func coordinatorSock() string {
