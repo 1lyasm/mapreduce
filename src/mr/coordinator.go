@@ -51,6 +51,7 @@ type Coordinator struct {
 	muRedCnt sync.Mutex
 	redCnt   int
 	fCnt     int
+	keyLocs  map[string][]string
 }
 
 func (c *Coordinator) server() {
@@ -202,6 +203,15 @@ func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 			c.muRedCnt.Lock()
 			c.redCnt += 1
 			c.muRedCnt.Unlock()
+		} else {
+			// log.Printf("getT: *arg.FkList: %v", *arg.FkList)
+			// log.Printf("getT: c.keyLocs before: %v", c.keyLocs)
+			for _, fk := range *arg.FkList {
+				for _, key := range fk.Keys {
+					c.keyLocs[key] = append(c.keyLocs[key], fk.F)
+				}
+			}
+			// log.Printf("getT: c.keyLocs after: %v", c.keyLocs)
 		}
 		last := last(tList, tList[i].Type)
 		tList[i] = tList[last]
@@ -210,15 +220,14 @@ func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 	}
 	log.Printf("GetT: tasks: %v", tList)
 	rep.Code = 1
+	rep.KeyLocs = c.keyLocs
 	for i, t := range tList {
 		if t.Stat == TaskFree {
 			rep.Code = 0
 			rep.File = t.File
 			rep.Type = t.Type
 			rep.Num = t.Num
-			c.muRedCnt.Lock()
-			c.muRedCnt.Unlock()
-			log.Printf("GetT: rep: %v", rep)
+			// log.Printf("GetT: rep: %v", rep)
 			tList[i].Stat = TaskLive // keep track
 			break
 		}
@@ -236,6 +245,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c.tasks.fill(files, nReduce)
 	c.workers = new(Workers)
 	c.nRed = nReduce
+	c.keyLocs = make(map[string][]string)
 	go c.clean()
 	c.server()
 	return &c

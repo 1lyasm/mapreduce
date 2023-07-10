@@ -54,7 +54,7 @@ func heartb(id int) {
 		if rep.Code == 1 {
 			break
 		}
-		// log.Printf("heartb: sent")
+		log.Printf("heartb: sent")
 		time.Sleep(time.Second)
 	}
 }
@@ -98,7 +98,12 @@ func bucket(keys *[]MergedKey, nRed int) *[][]MergedKey {
 	return bucks
 }
 
-func doMap(f string, mapf func(string, string) []KeyValue, nRed int, tNum int) {
+type FileKeys struct {
+	F    string
+	Keys []string
+}
+
+func doMap(f string, mapf func(string, string) []KeyValue, nRed int, tNum int) *[]FileKeys {
 	log.Printf("doMap: f: %s", f)
 	bytes, e := os.ReadFile(f)
 	if e != nil {
@@ -107,14 +112,22 @@ func doMap(f string, mapf func(string, string) []KeyValue, nRed int, tNum int) {
 	kva := mapf("", string(bytes[:]))
 	sort.Sort(ByKey(kva))
 	bucks := bucket(combine(kva), nRed)
+	fkList := new([]FileKeys)
 	for i := 0; i < nRed; i += 1 {
-		f, e := os.Create(fmt.Sprintf("mr-%d-%d", tNum, i))
+		fName := fmt.Sprintf("mr-%d-%d", tNum, i)
+		f, e := os.Create(fName)
 		if e != nil {
 			Fail("write: os.Create", e)
 		}
 		enc := json.NewEncoder(f)
 		enc.Encode((*bucks)[i])
+		keys := *new([]string)
+		for _, mkey := range (*bucks)[i] {
+			keys = append(keys, mkey.Key)
+		}
+		*fkList = append(*fkList, FileKeys{F: fName, Keys: keys})
 	}
+	return fkList
 }
 
 func read(keys *[]MergedKey, fName string) {
@@ -126,18 +139,33 @@ func read(keys *[]MergedKey, fName string) {
 	dec.Decode(keys)
 }
 
-func doRed(redf func(string, []string) string, redNum int, fCnt int, nRed int) {
+func gather(vals *[]string, targetK MergedKey, kLocs map[string][]string) {
+	// log.Printf("gather: kLocs: %v", kLocs)
+	for _, fName := range kLocs[targetK.Key] {
+		keys := new([]MergedKey)
+		read(keys, fName)
+		for _, mkey := range *keys {
+			if mkey.Key == targetK.Key {
+				// log.Printf("gather: appending")
+				*vals = append(*vals, mkey.Vals...)
+			}
+		}
+	}
+}
+
+func doRed(redf func(string, []string) string, redNum int,
+	fCnt int, nRed int, kLocs map[string][]string) {
 	f, e := os.OpenFile(fmt.Sprintf("mr-out-%d", redNum), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if e != nil {
 		Fail("doRed: os.Create", e)
 	}
-	log.Printf("doRed: ")
-	log.Printf("fCnt: %d", fCnt)
 	for i := 0; i < fCnt; i += 1 {
 		keys := new([]MergedKey)
 		read(keys, fmt.Sprintf("mr-%d-%d", i, redNum))
 		for _, key := range *keys {
-			// log.Printf("doRed: appending to file")
+			// log.Printf("doRed: main key.Key: %s", key.Key)
+			key.Vals = *new([]string)
+			gather(&key.Vals, key, kLocs)
 			fmt.Fprintf(f, "%v %v\n", key.Key, redf(key.Key, key.Vals))
 		}
 	}
@@ -147,8 +175,10 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
 	redf func(string, []string) string, fCnt int) {
 	doneNum := -1
 	doneType := -1
+	var fkList *[]FileKeys
 	for {
-		arg, rep := &GetTArg{DoneNum: doneNum, DoneType: doneType}, GetTRep{}
+		arg, rep := &GetTArg{DoneNum: doneNum, DoneType: doneType,
+			FkList: fkList}, GetTRep{}
 		_, e := call("Coordinator.GetT", arg, &rep)
 		if e != nil {
 			Fail("doTask: call", e)
@@ -156,15 +186,15 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
 		if rep.Code == 1 {
 			break
 		} else if rep.Code == 2 {
-			// log.Printf("doTask: waiting for new tasks")
+			log.Printf("doTask: waiting for new tasks")
 			doneNum = -1
 			time.Sleep(time.Second)
 			continue
 		}
 		if rep.Type == TaskM {
-			doMap(rep.File, mapf, nRed, rep.Num)
+			fkList = doMap(rep.File, mapf, nRed, rep.Num)
 		} else {
-			doRed(redf, rep.Num, fCnt, nRed)
+			doRed(redf, rep.Num, fCnt, nRed, rep.KeyLocs)
 		}
 		doneNum = rep.Num
 		doneType = rep.Type

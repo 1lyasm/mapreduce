@@ -27,13 +27,16 @@ type HbRep struct {
 type GetTArg struct {
 	DoneNum  int
 	DoneType int
+	Keys     []string
+	FkList   *[]FileKeys
 }
 
 type GetTRep struct {
-	Code int
-	File string
-	Type int
-	Num  int
+	Code    int
+	File    string
+	Type    int
+	Num     int
+	KeyLocs map[string][]string
 }
 
 func coordinatorSock() string {
