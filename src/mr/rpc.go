@@ -12,6 +12,7 @@ type RegWArg struct{}
 type RegWRep struct {
 	Id   int
 	NRed int
+	FCnt int
 }
 
 type HbArg struct {
@@ -24,7 +25,8 @@ type HbRep struct {
 }
 
 type GetTArg struct {
-	Id int
+	DoneNum  int
+	DoneType int
 }
 
 type GetTRep struct {
