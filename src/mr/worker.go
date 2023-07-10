@@ -28,7 +28,7 @@ func (a ByKey) Len() int           { return len(a) }
 func (a ByKey) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByKey) Less(i, j int) bool { return a[i].Key < a[j].Key }
 
-func call(rpcname string, args interface{}, reply interface{}) bool {
+func call(rpcname string, args interface{}, reply interface{}) (bool, error) {
 	// c, err := rpc.DialHTTP("tcp", "127.0.0.1"+":1234")
 	sockname := coordinatorSock()
 	c, err := rpc.DialHTTP("unix", sockname)
@@ -38,35 +38,35 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 	defer c.Close()
 	err = c.Call(rpcname, args, reply)
 	if err == nil {
-		return true
+		return true, nil
 	}
 	fmt.Println(err)
-	return false
+	return false, err
 }
 
 func heartb(id int) {
 	for {
 		arg, rep := &HbArg{Id: id, Last: time.Now()}, HbRep{}
-		e := call("Coordinator.Heartb", arg, &rep)
-		if !e {
-			Fail("heartb: call", nil)
+		_, e := call("Coordinator.Heartb", arg, &rep)
+		if e != nil {
+			Fail("heartb: call", e)
 		}
 		if rep.Code == 1 {
 			break
 		}
-		log.Printf("heartb: sent")
+		// log.Printf("heartb: sent")
 		time.Sleep(time.Second)
 	}
 }
 
-func reg() (int, int) {
+func reg() (int, int, int) {
 	arg, rep := &RegWArg{}, RegWRep{}
-	e := call("Coordinator.RegW", arg, &rep)
-	if !e {
-		Fail("reg: call", nil)
+	_, e := call("Coordinator.RegW", arg, &rep)
+	if e != nil {
+		Fail("reg: call", e)
 	}
-	log.Printf("reg: id: %d, nRed: %d", rep.Id, rep.NRed)
-	return rep.Id, rep.NRed
+	log.Printf("reg: id: %d, nRed: %d, FCnt: %d", rep.Id, rep.NRed, rep.FCnt)
+	return rep.Id, rep.NRed, rep.FCnt
 }
 
 func combine(kva []KeyValue) *[]MergedKey {
@@ -92,16 +92,17 @@ func bucket(keys *[]MergedKey, nRed int) *[][]MergedKey {
 		*bucks = append(*bucks, (*keys)[i*wid:(i+1)*wid])
 	}
 	for i := size - rem; i < size; i += 1 {
-		bNum := nRed - rem + i - size
+		bNum := nRed - rem + (i - size + rem)
 		(*bucks)[bNum] = append((*bucks)[bNum], (*keys)[i])
 	}
 	return bucks
 }
 
 func doMap(f string, mapf func(string, string) []KeyValue, nRed int, tNum int) {
+	log.Printf("doMap: f: %s", f)
 	bytes, e := os.ReadFile(f)
 	if e != nil {
-		Fail("doTask: os.ReadFile", e)
+		Fail("doMap: os.ReadFile", e)
 	}
 	kva := mapf("", string(bytes[:]))
 	sort.Sort(ByKey(kva))
@@ -122,44 +123,51 @@ func read(keys *[]MergedKey, fName string) {
 		Fail("read: os.Open", e)
 	}
 	dec := json.NewDecoder(f)
-	key := new(MergedKey)
-	for {
-		e := dec.Decode(key)
-		if e != nil {
-			Fail("read: dec.Decode", e)
-		}
-		*keys = append(*keys, *key)
-	}
+	dec.Decode(keys)
 }
 
-func doRed(redf func(string, []string) string, fName string, tNum int) {
-	keys := new([]MergedKey)
-	read(keys, fName)
-	f, e := os.Create(fmt.Sprintf("mr-out-%d", tNum))
+func doRed(redf func(string, []string) string, redNum int, fCnt int, nRed int) {
+	f, e := os.OpenFile(fmt.Sprintf("mr-out-%d", redNum), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if e != nil {
-		Fail("doRead: os.Create", e)
+		Fail("doRed: os.Create", e)
 	}
-	for _, key := range *keys {
-		fmt.Fprintf(f, "%v %v\n", key.Key, redf(key.Key, key.Vals))
+	log.Printf("doRed: ")
+	log.Printf("fCnt: %d", fCnt)
+	for i := 0; i < fCnt; i += 1 {
+		keys := new([]MergedKey)
+		read(keys, fmt.Sprintf("mr-%d-%d", i, redNum))
+		for _, key := range *keys {
+			// log.Printf("doRed: appending to file")
+			fmt.Fprintf(f, "%v %v\n", key.Key, redf(key.Key, key.Vals))
+		}
 	}
 }
 
 func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
-	redf func(string, []string) string) {
+	redf func(string, []string) string, fCnt int) {
+	doneNum := -1
+	doneType := -1
 	for {
-		arg, rep := &GetTArg{Id: id}, GetTRep{}
-		e := call("Coordinator.GetT", arg, &rep)
-		if !e {
-			Fail("doTask: call", nil)
+		arg, rep := &GetTArg{DoneNum: doneNum, DoneType: doneType}, GetTRep{}
+		_, e := call("Coordinator.GetT", arg, &rep)
+		if e != nil {
+			Fail("doTask: call", e)
 		}
 		if rep.Code == 1 {
 			break
+		} else if rep.Code == 2 {
+			// log.Printf("doTask: waiting for new tasks")
+			doneNum = -1
+			time.Sleep(time.Second)
+			continue
 		}
 		if rep.Type == TaskM {
 			doMap(rep.File, mapf, nRed, rep.Num)
 		} else {
-			doRed(redf, rep.File, rep.Num)
+			doRed(redf, rep.Num, fCnt, nRed)
 		}
+		doneNum = rep.Num
+		doneType = rep.Type
 	}
 }
 
@@ -177,7 +185,7 @@ func ihash(key string) int {
 
 func RunW(mapf func(string, string) []KeyValue,
 	redf func(string, []string) string) {
-	id, nRed := reg()
+	id, nRed, fCnt := reg()
 	ch := make(chan int)
 	doneCnt := 0
 	muDone := sync.Mutex{}
@@ -188,7 +196,7 @@ func RunW(mapf func(string, string) []KeyValue,
 		incAtom(&doneCnt, &muDone)
 	}()
 	go func() {
-		doTask(id, nRed, mapf, redf)
+		doTask(id, nRed, mapf, redf, fCnt)
 		log.Print("RunW: completed tasks")
 		ch <- 2
 		incAtom(&doneCnt, &muDone)
