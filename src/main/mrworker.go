@@ -11,7 +11,7 @@ import (
 func loadPlugin(filename string) (func(string, string) []mr.KeyValue, func(string, []string) string) {
 	p, err := plugin.Open(filename)
 	if err != nil {
-		log.Fatalf("cannot load plugin %v", filename)
+		log.Fatalf("cannot load plugin %v", filename, err)
 	}
 	xmapf, err := p.Lookup("Map")
 	if err != nil {
