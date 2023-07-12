@@ -69,19 +69,12 @@ func reg() (int, int, int) {
 	return rep.Id, rep.NRed, rep.FCnt
 }
 
-func combine(kva []KeyValue) *[]MergedKey {
-	keys := new([]MergedKey)
+func combine(kva []KeyValue) *map[string][]string {
+	combined := make(map[string][]string)
 	for i := 0; i < len(kva); i += 1 {
-		key := kva[i].Key
-		j := i
-		var vals []string
-		for ; j < len(kva) && kva[j].Key == key; j += 1 {
-			vals = append(vals, kva[j].Value)
-		}
-		i = j + 1
-		*keys = append(*keys, MergedKey{Key: key, Vals: vals})
+		combined[kva[i].Key] = append(combined[kva[i].Key], kva[i].Value)
 	}
-	return keys
+	return &combined
 }
 
 func bucket(keys *[]MergedKey, nRed int) *[][]MergedKey {
@@ -103,71 +96,73 @@ type FileKeys struct {
 	Keys []string
 }
 
-func doMap(f string, mapf func(string, string) []KeyValue, nRed int, tNum int) *[]FileKeys {
+func doMap(f string, mapf func(string, string) []KeyValue,
+	nRed int, tNum int) *map[string]string {
 	log.Printf("doMap: f: %s", f)
 	bytes, e := os.ReadFile(f)
 	if e != nil {
 		Fail("doMap: os.ReadFile", e)
 	}
 	kva := mapf("", string(bytes[:]))
-	sort.Sort(ByKey(kva))
-	bucks := bucket(combine(kva), nRed)
-	fkList := new([]FileKeys)
 	for i := 0; i < nRed; i += 1 {
-		fName := fmt.Sprintf("mr-%d-%d", tNum, i)
-		f, e := os.Create(fName)
+		_, e := os.Create(fmt.Sprintf("mr-%d-%d", tNum, i))
 		if e != nil {
-			Fail("write: os.Create", e)
+			Fail("doMap: os.Create", e)
 		}
-		enc := json.NewEncoder(f)
-		enc.Encode((*bucks)[i])
-		keys := *new([]string)
-		for _, mkey := range (*bucks)[i] {
-			keys = append(keys, mkey.Key)
-		}
-		*fkList = append(*fkList, FileKeys{F: fName, Keys: keys})
 	}
-	return fkList
+	kfMap := make(map[string]string)
+	kvfMap := make(map[string][]KeyValue)
+	for _, kv := range kva {
+		redW := ihash(kv.Key) % nRed
+		if kv.Key == "a" && redW != 2 {
+			log.Fatalf("doMap: wrong redW")
+			// log.Printf("doMap: redW for a: %d", redW)
+		}
+		intF := fmt.Sprintf("mr-%d-%d", tNum, redW)
+		kvfMap[intF] = append(kvfMap[intF], kv)
+		kfMap[kv.Key] = intF
+	}
+	for fName, kva := range kvfMap {
+		intF, e := os.Create(fName)
+		if e != nil {
+			Fail("doMap: os.Open", e)
+		}
+		enc := json.NewEncoder(intF)
+		e = enc.Encode(kva)
+		if e != nil {
+			Fail("doMap: enc.Encode", e)
+		}
+	}
+	return &kfMap
 }
 
-func read(keys *[]MergedKey, fName string) {
+func read(kva *[]KeyValue, fName string) {
 	f, e := os.Open(fName)
 	if e != nil {
 		Fail("read: os.Open", e)
 	}
 	dec := json.NewDecoder(f)
-	dec.Decode(keys)
-}
-
-func gather(vals *[]string, targetK MergedKey, kLocs map[string][]string) {
-	// log.Printf("gather: kLocs: %v", kLocs)
-	for _, fName := range kLocs[targetK.Key] {
-		keys := new([]MergedKey)
-		read(keys, fName)
-		for _, mkey := range *keys {
-			if mkey.Key == targetK.Key {
-				// log.Printf("gather: appending")
-				*vals = append(*vals, mkey.Vals...)
-			}
-		}
-	}
+	dec.Decode(kva)
 }
 
 func doRed(redf func(string, []string) string, redNum int,
-	fCnt int, nRed int, kLocs map[string][]string) {
+	fCnt int, nRed int, kfMap *map[string]string) {
+	log.Printf("doRed: redNum: %d", redNum)
 	f, e := os.OpenFile(fmt.Sprintf("mr-out-%d", redNum), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if e != nil {
 		Fail("doRed: os.Create", e)
 	}
+	kvaAll := new([]KeyValue)
 	for i := 0; i < fCnt; i += 1 {
-		keys := new([]MergedKey)
-		read(keys, fmt.Sprintf("mr-%d-%d", i, redNum))
-		for _, key := range *keys {
-			// log.Printf("doRed: main key.Key: %s", key.Key)
-			key.Vals = *new([]string)
-			gather(&key.Vals, key, kLocs)
-			fmt.Fprintf(f, "%v %v\n", key.Key, redf(key.Key, key.Vals))
-		}
+		kva := new([]KeyValue)
+		read(kva, fmt.Sprintf("mr-%d-%d", i, redNum))
+		*kvaAll = append(*kvaAll, *kva...)
+	}
+	sort.Sort(ByKey(*kvaAll))
+	combined := combine(*kvaAll)
+	for key, vals := range *combined {
+		res := redf(key, vals)
+		fmt.Fprintf(f, "%v %v\n", key, res)
 	}
 }
 
@@ -175,10 +170,10 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
 	redf func(string, []string) string, fCnt int) {
 	doneNum := -1
 	doneType := -1
-	var fkList *[]FileKeys
+	var kfMap *map[string]string
 	for {
 		arg, rep := &GetTArg{DoneNum: doneNum, DoneType: doneType,
-			FkList: fkList}, GetTRep{}
+			KfMap: kfMap}, GetTRep{}
 		_, e := call("Coordinator.GetT", arg, &rep)
 		if e != nil {
 			Fail("doTask: call", e)
@@ -192,9 +187,9 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
 			continue
 		}
 		if rep.Type == TaskM {
-			fkList = doMap(rep.File, mapf, nRed, rep.Num)
+			kfMap = doMap(rep.File, mapf, nRed, rep.Num)
 		} else {
-			doRed(redf, rep.Num, fCnt, nRed, rep.KeyLocs)
+			doRed(redf, rep.Num, fCnt, nRed, arg.KfMap)
 		}
 		doneNum = rep.Num
 		doneType = rep.Type

@@ -28,15 +28,14 @@ type GetTArg struct {
 	DoneNum  int
 	DoneType int
 	Keys     []string
-	FkList   *[]FileKeys
+	KfMap    *map[string]string
 }
 
 type GetTRep struct {
-	Code    int
-	File    string
-	Type    int
-	Num     int
-	KeyLocs map[string][]string
+	Code int
+	File string
+	Type int
+	Num  int
 }
 
 func coordinatorSock() string {
