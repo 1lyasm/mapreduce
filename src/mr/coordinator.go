@@ -27,8 +27,8 @@ type Worker struct {
 }
 
 type Workers struct {
-	mu   sync.Mutex
-	List []Worker
+	mu sync.Mutex
+	L  []Worker
 }
 
 type Task struct {
@@ -40,8 +40,8 @@ type Task struct {
 }
 
 type Tasks struct {
-	mu   sync.Mutex
-	List []Task
+	mu sync.Mutex
+	L  []Task
 }
 
 type Coordinator struct {
@@ -77,11 +77,11 @@ func (c *Coordinator) Done() bool {
 func (tasks *Tasks) fill(files []string, nRed int) {
 	for i := 0; i < len(files); i += 1 {
 		log.Printf("fill: new task with file: %s", files[i])
-		tasks.List = append(tasks.List,
+		tasks.L = append(tasks.L,
 			Task{File: files[i], Stat: TaskFree, Type: TaskM, Num: i})
 	}
 	for i := 0; i < nRed; i += 1 {
-		tasks.List = append(tasks.List,
+		tasks.L = append(tasks.L,
 			Task{Stat: TaskFree, Type: TaskR,
 				Num: i})
 	}
@@ -89,8 +89,8 @@ func (tasks *Tasks) fill(files []string, nRed int) {
 
 func (workers *Workers) Str() string {
 	output := ""
-	for i := 0; i < len(workers.List); i += 1 {
-		output += fmt.Sprintf("%d ", workers.List[i].Id)
+	for i := 0; i < len(workers.L); i += 1 {
+		output += fmt.Sprintf("%d ", workers.L[i].Id)
 	}
 	return fmt.Sprintf("workers: [ %s]", output)
 }
@@ -100,14 +100,14 @@ func (c *Coordinator) clean() {
 	for {
 		c.workers.mu.Lock()
 		now := time.Now()
-		for i := 0; i < len(c.workers.List); i += 1 {
-			if now.Sub(c.workers.List[i].Last).Milliseconds() >
+		for i := 0; i < len(c.workers.L); i += 1 {
+			if now.Sub(c.workers.L[i].Last).Milliseconds() >
 				(timeout - period).Milliseconds() {
-				log.Printf("clean: %d", c.workers.List[i].Id)
-				c.workers.List[i] = c.workers.List[len(c.workers.List)-1]
-				c.workers.List = c.workers.List[:len(c.workers.List)-1]
+				log.Printf("clean: %d", c.workers.L[i].Id)
+				c.workers.L[i] = c.workers.L[len(c.workers.L)-1]
+				c.workers.L = c.workers.L[:len(c.workers.L)-1]
 			}
-			if len(c.workers.List) == 0 {
+			if len(c.workers.L) == 0 {
 				break
 			}
 		}
@@ -122,10 +122,10 @@ func (c *Coordinator) reassign() {
 	for {
 		now := time.Now()
 		c.tasks.mu.Lock()
-		for i, t := range c.tasks.List {
+		for i, t := range c.tasks.L {
 			if now.Sub(t.Start).Milliseconds() >
 				(timeout - period).Milliseconds() {
-				c.tasks.List[i].Stat = TaskFree
+				c.tasks.L[i].Stat = TaskFree
 			}
 		}
 		c.tasks.mu.Unlock()
@@ -139,9 +139,9 @@ func (c *Coordinator) Heartb(arg *HbArg, rep *HbRep) error {
 	rep.Code = 0
 	var w *Worker
 	w = nil
-	for i := 0; i < len(c.workers.List); i += 1 {
-		if c.workers.List[i].Id == arg.Id {
-			w = &c.workers.List[i]
+	for i := 0; i < len(c.workers.L); i += 1 {
+		if c.workers.L[i].Id == arg.Id {
+			w = &c.workers.L[i]
 		}
 	}
 	if w == nil {
@@ -154,9 +154,9 @@ func (c *Coordinator) Heartb(arg *HbArg, rep *HbRep) error {
 
 func (workers *Workers) maxId() int {
 	max := -1
-	for i := 0; i < len(workers.List); i += 1 {
-		if workers.List[i].Id > max {
-			max = workers.List[i].Id
+	for i := 0; i < len(workers.L); i += 1 {
+		if workers.L[i].Id > max {
+			max = workers.L[i].Id
 		}
 	}
 	return max
@@ -166,12 +166,12 @@ func (c *Coordinator) RegW(arg *RegWArg, rep *RegWRep) error {
 	c.workers.mu.Lock()
 	defer c.workers.mu.Unlock()
 	var newId int
-	if len(c.workers.List) >= 1 {
+	if len(c.workers.L) >= 1 {
 		newId = c.workers.maxId() + 1
 	} else {
 		newId = 0
 	}
-	c.workers.List = append(c.workers.List, Worker{Id: newId, Last: time.Now()})
+	c.workers.L = append(c.workers.L, Worker{Id: newId, Last: time.Now()})
 	rep.Id = newId
 	rep.NRed = c.nRed
 	rep.FCnt = c.fCnt
@@ -201,10 +201,9 @@ func last(ls []Task, kind int) int {
 func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 	c.tasks.mu.Lock()
 	defer c.tasks.mu.Unlock()
-	tList := c.tasks.List
-	if arg.DoneNum >= 0 && len(tList) > 0 {
-		i := findT(tList, arg.DoneNum, arg.DoneType)
-		if tList[i].Type == TaskR {
+	if arg.DoneNum >= 0 && len(c.tasks.L) > 0 {
+		i := findT(c.tasks.L, arg.DoneNum, arg.DoneType)
+		if c.tasks.L[i].Type == TaskR {
 			c.muRedCnt.Lock()
 			c.redCnt += 1
 			c.muRedCnt.Unlock()
@@ -215,32 +214,31 @@ func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 			}
 			c.muKf.Unlock()
 		}
-		last := last(tList, tList[i].Type)
-		tList[i] = tList[last]
-		tList[last] = tList[len(tList)-1]
-		tList = tList[:len(tList)-1]
+		last := last(c.tasks.L, c.tasks.L[i].Type)
+		c.tasks.L[i] = c.tasks.L[last]
+		c.tasks.L[last] = c.tasks.L[len(c.tasks.L)-1]
+		c.tasks.L = c.tasks.L[:len(c.tasks.L)-1]
 	}
-	log.Printf("GetT: tasks: %v", tList)
+	log.Printf("GetT: tasks: %v", c.tasks.L)
 	hasMap := false
-	for _, t := range tList {
+	for _, t := range c.tasks.L {
 		if t.Type == TaskM {
 			hasMap = true
 			break
 		}
 	}
 	rep.Code = 1
-	for i, t := range tList {
+	for i, t := range c.tasks.L {
 		if t.Stat == TaskFree && !(t.Type == TaskR && hasMap) {
 			rep.Code = 0
 			rep.File = t.File
 			rep.Type = t.Type
 			rep.Num = t.Num
-			tList[i].Stat = TaskLive
-			tList[i].Start = time.Now()
+			c.tasks.L[i].Stat = TaskLive
+			c.tasks.L[i].Start = time.Now()
 			break
 		}
 	}
-	c.tasks.List = tList
 	if rep.Code == 1 && !c.Done() {
 		rep.Code = 2
 	}
