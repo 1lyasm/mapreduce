@@ -33,10 +33,11 @@ type Workers struct {
 }
 
 type Task struct {
-	File string
-	Stat int
-	Type int
-	Num  int
+	File  string
+	Stat  int
+	Type  int
+	Num   int
+	Start time.Time
 }
 
 type Tasks struct {
@@ -114,6 +115,22 @@ func (c *Coordinator) clean() {
 		log.Printf("clean: %s", c.workers.Str())
 		c.workers.mu.Unlock()
 		time.Sleep(period)
+	}
+}
+
+func (c *Coordinator) reassign() {
+	period, timeout := time.Duration(time.Second), time.Duration(10*time.Second)
+	for {
+		now := time.Now()
+		c.tasks.mu.Lock()
+		for i, t := range c.tasks.List {
+			if now.Sub(t.Start).Milliseconds() >
+				(timeout - period).Milliseconds() {
+				c.tasks.List[i].Stat = TaskFree
+			}
+		}
+		c.tasks.mu.Unlock()
+		time.Sleep(time.Second)
 	}
 }
 
@@ -220,7 +237,8 @@ func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 			rep.File = t.File
 			rep.Type = t.Type
 			rep.Num = t.Num
-			tList[i].Stat = TaskLive // keep track
+			tList[i].Stat = TaskLive
+			tList[i].Start = time.Now()
 			break
 		}
 	}
@@ -239,6 +257,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c.nRed = nReduce
 	c.kfMap = make(map[string]string)
 	go c.clean()
+	go c.reassign()
 	c.server()
 	return &c
 }
