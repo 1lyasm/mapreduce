@@ -111,8 +111,8 @@ func (c *Coordinator) clean() {
 				break
 			}
 		}
-		c.workers.mu.Unlock()
 		log.Printf("clean: %s", c.workers.Str())
+		c.workers.mu.Unlock()
 		time.Sleep(period)
 	}
 }
@@ -164,16 +164,6 @@ func (c *Coordinator) RegW(arg *RegWArg, rep *RegWRep) error {
 	return nil
 }
 
-func maxNum(ls []Task, kind int) int {
-	max := -1
-	for _, t := range ls {
-		if t.Type == kind && t.Num > max {
-			max = t.Num
-		}
-	}
-	return max
-}
-
 func findT(ls []Task, num int, kind int) int {
 	log.Printf("findT: num: %d, kind: %d", num, kind)
 	for i, t := range ls {
@@ -187,7 +177,6 @@ func findT(ls []Task, num int, kind int) int {
 func last(ls []Task, kind int) int {
 	for i := len(ls) - 1; i >= 0; i -= 1 {
 		if ls[i].Type == kind {
-			log.Printf("last: %d", i)
 			return i
 		}
 	}
@@ -217,14 +206,20 @@ func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 		tList = tList[:len(tList)-1]
 	}
 	log.Printf("GetT: tasks: %v", tList)
+	hasMap := false
+	for _, t := range tList {
+		if t.Type == TaskM {
+			hasMap = true
+			break
+		}
+	}
 	rep.Code = 1
 	for i, t := range tList {
-		if t.Stat == TaskFree {
+		if t.Stat == TaskFree && !(t.Type == TaskR && hasMap) {
 			rep.Code = 0
 			rep.File = t.File
 			rep.Type = t.Type
 			rep.Num = t.Num
-			// log.Printf("GetT: rep: %v", rep)
 			tList[i].Stat = TaskLive // keep track
 			break
 		}

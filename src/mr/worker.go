@@ -17,11 +17,6 @@ type KeyValue struct {
 	Value string
 }
 
-type MergedKey struct {
-	Key  string
-	Vals []string
-}
-
 type ByKey []KeyValue
 
 func (a ByKey) Len() int           { return len(a) }
@@ -77,25 +72,6 @@ func combine(kva []KeyValue) *map[string][]string {
 	return &combined
 }
 
-func bucket(keys *[]MergedKey, nRed int) *[][]MergedKey {
-	bucks := new([][]MergedKey)
-	size := len(*keys)
-	wid, rem := size/nRed, size%nRed
-	for i := 0; i < nRed; i += 1 {
-		*bucks = append(*bucks, (*keys)[i*wid:(i+1)*wid])
-	}
-	for i := size - rem; i < size; i += 1 {
-		bNum := nRed - rem + (i - size + rem)
-		(*bucks)[bNum] = append((*bucks)[bNum], (*keys)[i])
-	}
-	return bucks
-}
-
-type FileKeys struct {
-	F    string
-	Keys []string
-}
-
 func doMap(f string, mapf func(string, string) []KeyValue,
 	nRed int, tNum int) *map[string]string {
 	log.Printf("doMap: f: %s", f)
@@ -103,7 +79,7 @@ func doMap(f string, mapf func(string, string) []KeyValue,
 	if e != nil {
 		Fail("doMap: os.ReadFile", e)
 	}
-	kva := mapf("", string(bytes[:]))
+	kva := mapf(f, string(bytes[:]))
 	for i := 0; i < nRed; i += 1 {
 		_, e := os.Create(fmt.Sprintf("mr-%d-%d", tNum, i))
 		if e != nil {
@@ -114,10 +90,6 @@ func doMap(f string, mapf func(string, string) []KeyValue,
 	kvfMap := make(map[string][]KeyValue)
 	for _, kv := range kva {
 		redW := ihash(kv.Key) % nRed
-		if kv.Key == "a" && redW != 2 {
-			log.Fatalf("doMap: wrong redW")
-			// log.Printf("doMap: redW for a: %d", redW)
-		}
 		intF := fmt.Sprintf("mr-%d-%d", tNum, redW)
 		kvfMap[intF] = append(kvfMap[intF], kv)
 		kfMap[kv.Key] = intF
@@ -148,7 +120,7 @@ func read(kva *[]KeyValue, fName string) {
 func doRed(redf func(string, []string) string, redNum int,
 	fCnt int, nRed int, kfMap *map[string]string) {
 	log.Printf("doRed: redNum: %d", redNum)
-	f, e := os.OpenFile(fmt.Sprintf("mr-out-%d", redNum), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, e := os.Create(fmt.Sprintf("mr-out-%d", redNum))
 	if e != nil {
 		Fail("doRed: os.Create", e)
 	}
@@ -181,7 +153,7 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
 		if rep.Code == 1 {
 			break
 		} else if rep.Code == 2 {
-			log.Printf("doTask: waiting for new tasks")
+			log.Printf("doTask: w%d: waiting for new tasks", id)
 			doneNum = -1
 			time.Sleep(time.Second)
 			continue

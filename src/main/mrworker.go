@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"mapreduce/mr"
 	"os"
@@ -28,6 +29,7 @@ func loadPlugin(filename string) (func(string, string) []mr.KeyValue, func(strin
 }
 
 func main() {
+	log.SetOutput(io.Discard)
 	if len(os.Args) != 2 {
 		fmt.Fprintf(os.Stderr, "Usage: mrworker xxx.so\n")
 		os.Exit(1)

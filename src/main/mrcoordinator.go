@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"mapreduce/mr"
 	"os"
 	"time"
 )
 
 func main() {
+	log.SetOutput(io.Discard)
 	if len(os.Args) < 2 {
 		fmt.Fprintf(os.Stderr, "Usage: mrcoordinator inputfiles...\n")
 		os.Exit(1)
