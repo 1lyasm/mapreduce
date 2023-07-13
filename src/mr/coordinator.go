@@ -14,7 +14,6 @@ import (
 const (
 	TaskFree = 0
 	TaskLive = 1
-	TaskDone = 2
 )
 
 const (
@@ -149,7 +148,6 @@ func (c *Coordinator) Heartb(arg *HbArg, rep *HbRep) error {
 		rep.Code = 1
 	} else {
 		w.Last = arg.Last
-		// log.Printf("Heartb: %d", arg.Id)
 	}
 	return nil
 }
