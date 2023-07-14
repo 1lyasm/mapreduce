@@ -1,7 +1,7 @@
 package mr
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -44,5 +44,6 @@ func coordinatorSock() string {
 }
 
 func Fail(f string, e error) {
-	log.Fatal(f + " failed: " + e.Error())
+	fmt.Print(f + " failed: " + e.Error())
+	os.Exit(1)
 }
