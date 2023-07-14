@@ -201,8 +201,8 @@ func last(ls []Task, kind int) int {
 func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 	c.tasks.mu.Lock()
 	defer c.tasks.mu.Unlock()
-	if arg.DoneNum >= 0 && len(c.tasks.L) > 0 {
-		i := findT(c.tasks.L, arg.DoneNum, arg.DoneType)
+	i := findT(c.tasks.L, arg.DoneNum, arg.DoneType)
+	if arg.DoneNum >= 0 && len(c.tasks.L) > 0 && i >= 0 {
 		if c.tasks.L[i].Type == TaskR {
 			c.muRedCnt.Lock()
 			c.redCnt += 1
