@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SRC=$(pwd)/src
+TEST=$(pwd)/../test
 
 ISQUIET=$1
 maybe_quiet() {
@@ -41,11 +42,11 @@ failed_any=0
 
 echo '***' Starting wc test.
 
-$SRC/main/mrsequential $SRC/mrapps/wc.so $SRC/test/pg*txt || exit 1
+$SRC/main/mrsequential $SRC/mrapps/wc.so $TEST/pg*txt || exit 1
 sort mr-out-0 > mr-correct-wc.txt
 rm -f mr-out*
 
-maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $SRC/test/pg*txt &
+maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $TEST/pg*txt &
 pid=$!
 
 sleep 1
@@ -72,11 +73,11 @@ echo '***' Starting indexer test.
 
 rm -f mr-*
 
-$SRC/main/mrsequential $SRC/mrapps/indexer.so $SRC/test/pg*txt || exit 1
+$SRC/main/mrsequential $SRC/mrapps/indexer.so $TEST/pg*txt || exit 1
 sort mr-out-0 > mr-correct-indexer.txt
 rm -f mr-out*
 
-maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $SRC/test/pg*txt &
+maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $TEST/pg*txt &
 sleep 1
 
 maybe_quiet $TIMEOUT $SRC/main/mrworker $SRC/mrapps/indexer.so &
@@ -98,7 +99,7 @@ echo '***' Starting map parallelism test.
 
 rm -f mr-*
 
-maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $SRC/test/pg*txt &
+maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $TEST/pg*txt &
 sleep 1
 
 maybe_quiet $TIMEOUT $SRC/main/mrworker $SRC/mrapps/mtiming.so &
@@ -127,7 +128,7 @@ echo '***' Starting reduce parallelism test.
 
 rm -f mr-*
 
-maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $SRC/test/pg*txt &
+maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $TEST/pg*txt &
 sleep 1
 
 maybe_quiet $TIMEOUT $SRC/main/mrworker $SRC/mrapps/rtiming.so  &
@@ -149,7 +150,7 @@ echo '***' Starting job count test.
 
 rm -f mr-*
 
-maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $SRC/test/pg*txt  &
+maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $TEST/pg*txt  &
 sleep 1
 
 maybe_quiet $TIMEOUT $SRC/main/mrworker $SRC/mrapps/jobcount.so &
@@ -176,7 +177,7 @@ rm -f mr-*
 DF=anydone$$
 rm -f $DF
 
-(maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $SRC/test/pg*txt; touch $DF) &
+(maybe_quiet $TIMEOUT $SRC/main/mrcoordinator $TEST/pg*txt; touch $DF) &
 
 sleep 1
 
@@ -206,12 +207,12 @@ rm -f mr-*
 
 echo '***' Starting crash test.
 
-$SRC/main/mrsequential $SRC/mrapps/nocrash.so $SRC/test/pg*txt || exit 1
+$SRC/main/mrsequential $SRC/mrapps/nocrash.so $TEST/pg*txt || exit 1
 sort mr-out-0 > mr-correct-crash.txt
 rm -f mr-out*
 
 rm -f mr-done
-((maybe_quiet $TIMEOUT2 $SRC/main/mrcoordinator $SRC/test/pg*txt); touch mr-done ) &
+((maybe_quiet $TIMEOUT2 $SRC/main/mrcoordinator $TEST/pg*txt); touch mr-done ) &
 sleep 1
 
 maybe_quiet $TIMEOUT2 $SRC/main/mrworker $SRC/mrapps/crash.so &
