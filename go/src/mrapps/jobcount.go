@@ -1,13 +1,5 @@
 package main
 
-//
-// a MapReduce pseudo-application that counts the number of times map/reduce
-// tasks are run, to test whether jobs are assigned multiple times even when
-// there is no failure.
-//
-// go build -buildmode=plugin crash.go
-//
-
 import (
 	"fmt"
 	"io/ioutil"

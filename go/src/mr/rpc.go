@@ -38,7 +38,7 @@ type GetTRep struct {
 }
 
 func coordinatorSock() string {
-	s := "/var/tmp/5840-mr-"
+	s := "/var/tmp/1234-mr-"
 	s += strconv.Itoa(os.Getuid())
 	return s
 }
