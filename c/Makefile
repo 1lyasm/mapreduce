@@ -1,4 +1,4 @@
 all:
 	./build.sh
 clean:
-	./clean.sh
+	rm src/main/mrsequential
