@@ -1,5 +1,5 @@
-#ifndef WORKER_H
-#define WORKER_H
+#ifndef MR_H
+#define MR_H
 
 typedef struct {
   char *k;
@@ -20,5 +20,8 @@ Kva *allocKva(void);
 void expandKva(Kva *kva);
 void addKv(Kva *kva, Kv *kv);
 void freeKva(Kva *kva);
+
+Kva *map(char *fName, char *str);
+char *reduce(char *key, char **vals, int valsLen);
 
 #endif

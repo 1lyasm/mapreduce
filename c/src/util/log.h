@@ -4,10 +4,9 @@
 #define LOG
 
 #ifdef LOG
-    #define log(x) x
+#define log(x) x
 #else
-    #define log(x)
+#define log(x)
 #endif
 
 #endif
-
