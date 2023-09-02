@@ -25,6 +25,13 @@ Kv *allocKv(int kLen, int vLen) {
   return kv;
 }
 
+Kv *copyKv(Kv *kv) {
+  Kv *copy = allocKv(strlen(kv->k), strlen(kv->v));
+  memcpy(copy->k, kv->k, strlen(kv->k));
+  memcpy(copy->v, kv->v, strlen(kv->v));
+  return copy;
+}
+
 void freeKv(Kv *kv) {
   free(kv->k);
   free(kv->v);
@@ -46,8 +53,6 @@ Kva *allocKva(void) {
   }
   return kva;
 }
-
-Kv *copyKv(Kv *kv) { return allocKv(strlen(kv->k), strlen(kv->v)); }
 
 void expandKva(Kva *kva) {
   kva->size *= 2;
