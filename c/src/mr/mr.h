@@ -8,6 +8,7 @@ typedef struct {
 
 Kv *allocKv(int kLen, int vLen);
 Kv *copyKv(Kv *kv);
+void printKv(Kv *kv);
 void freeKv(Kv *kv);
 
 typedef struct {
@@ -19,6 +20,7 @@ typedef struct {
 Kva *allocKva(void);
 void expandKva(Kva *kva);
 void addKv(Kva *kva, Kv *kv);
+void printKva(Kva *kva);
 void freeKva(Kva *kva);
 
 Kva *map(char *fName, char *str);
