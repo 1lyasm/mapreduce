@@ -6,6 +6,9 @@
 #include "../util/err.h"
 #include "../util/log.h"
 
+Kva *map(char *fName, char *str);
+char *reduce(char *key, char **vals, int valsLen);
+
 int main(int argc, char **argv) {
   if (argc < 2) err("Usage: mrsequential inputfiles...");
   setlocale(LC_ALL, "en_US.utf8");
