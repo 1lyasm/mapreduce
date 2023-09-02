@@ -3,66 +3,37 @@
 #include <stdlib.h>
 
 #include "../mr/mr.h"
+#include "../util/err.h"
 #include "../util/log.h"
 
 int main(int argc, char **argv) {
+  if (argc < 2) err("Usage: mrsequential inputfiles...");
   setlocale(LC_ALL, "en_US.utf8");
-  if (argc < 2) {
-    fprintf(stderr, "Usage: mrsequential xxx.so inputfiles...\n");
-    exit(EXIT_FAILURE);
-  }
   Kva *intm = allocKva();
   for (int i = 1; i < argc; ++i) {
     char *fName = argv[i];
     log(printf("main: file number: %d, fName: %s\n", i - 1, fName));
     FILE *f = fopen(fName, "r");
-    if (!f) {
-      fprintf(stderr, "main: fopen failed\n");
-      exit(EXIT_FAILURE);
-    }
-    if (fseek(f, 0, SEEK_END)) {
-      fprintf(stderr, "main: fseek faile\n");
-      exit(EXIT_FAILURE);
-    }
+    if (!f) err("main: fopen failed");
+    if (fseek(f, 0, SEEK_END)) err("main: fseek failed");
     long fLen = ftell(f);
-    if (fLen == -1L) {
-      fprintf(stderr, "main: ftell failed\n");
-      exit(EXIT_FAILURE);
-    }
+    if (fLen == -1L) err("main: ftell failed");
     log(printf("main: fLen: %ld\n", fLen));
     rewind(f);
-    char *buf = malloc((fLen + 1) * sizeof(char));
-    if (!buf) {
-      fprintf(stderr, "main: malloc failed\n");
-      exit(EXIT_FAILURE);
-    }
-    buf[fLen] = 0;
-    log(printf(
-        "main: fread args: buffer: %p, size: %zu, count: %zu, file: %p\n", buf,
-        sizeof(char), fLen, f));
-    size_t readCnt = fread(buf, sizeof(char), fLen, f);
+    char *str = malloc((fLen + 1) * sizeof(char));
+    if (!str) err("main: malloc failed");
+    str[fLen] = 0;
+    size_t readCnt = fread(str, sizeof(char), fLen, f);
     log(printf("main: readCnt: %zu\n", readCnt));
     if (readCnt != fLen) {
-      if (feof(f)) {
-        fprintf(stderr, "main: fread: unexpected EOF\n");
-        exit(EXIT_FAILURE);
-      } else if (ferror(f)) {
-        fprintf(stderr, "main: fread: ferror returned true\n");
-        exit(EXIT_FAILURE);
-      } else {
-        fprintf(stderr, "main: fread failed\n");
-        exit(EXIT_FAILURE);
-      }
+      if (feof(f))
+        err("main: fread: unexpected EOF");
+      else if (ferror(f))
+        err("main: fread: ferror returned true");
+      else
+        err("main: fread failed");
     }
-    if (fclose(f) == EOF) {
-      fprintf(stderr, "main: fclose failed\n");
-      exit(EXIT_FAILURE);
-    }
-    Kva *kva = map(fName, buf);
-    for (int j = 0; j < kva->len; ++j) {
-      addKv(intm, copyKv(kva->data[j]));
-    }
-    free(buf);
+    if (fclose(f) == EOF) err("main: fclose failed");
     freeKva(kva);
   }
   freeKva(intm);
