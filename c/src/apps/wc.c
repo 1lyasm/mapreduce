@@ -20,7 +20,7 @@ char *findFirst(char *str, int isLetter) {
       fprintf(stderr, "findFirst: mbrtowc failed\n");
       exit(EXIT_FAILURE);
     }
-    if ((isLetter && iswalnum(wc)) || (!isLetter && !iswalnum(wc))) return cur;
+    if ((isLetter && iswalpha(wc)) || (!isLetter && !iswalpha(wc))) return cur;
   }
   return cur;
 }
