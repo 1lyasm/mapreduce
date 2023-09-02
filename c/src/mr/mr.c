@@ -32,6 +32,8 @@ Kv *copyKv(Kv *kv) {
   return copy;
 }
 
+void printKv(Kv *kv) { printf("{ \"%s\", \"%s\" }\n", kv->k, kv->v); }
+
 void freeKv(Kv *kv) {
   free(kv->k);
   free(kv->v);
@@ -68,6 +70,15 @@ void addKv(Kva *kva, Kv *kv) {
     expandKva(kva);
   }
   kva->data[kva->len++] = kv;
+}
+
+void printKva(Kva *kva) {
+  printf("{\n");
+  for (int i = 0; i < kva->len; ++i) {
+    printf("\t");
+    printKv(kva->data[i]);
+  }
+  printf("}\n");
 }
 
 void freeKva(Kva *kva) {
