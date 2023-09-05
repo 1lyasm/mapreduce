@@ -64,8 +64,7 @@ int main(int argc, char **argv) {
         for (; j < kva->len; ++j)
             if (strcmp(kva->data[j]->k, kva->data[i]->k) != 0) break;
         int valuesLen = 0;
-        for (int k = i; k < j; ++k)
-            values[valuesLen++] = kva->data[k]->v;
+        for (int k = i; k < j; ++k) values[valuesLen++] = kva->data[k]->v;
         char *output = reduce(kva->data[i]->k, values, valuesLen);
         fprintf(outF, "%s %s\n", kva->data[i]->k, output);
         free(output);
