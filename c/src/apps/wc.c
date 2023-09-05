@@ -6,8 +6,8 @@
 #include <wctype.h>
 
 #include "../mr/mr.h"
-#include "../util/log.h"
 #include "../util/err.h"
+#include "../util/log.h"
 
 char *findFirst(char *str, int isLetter) {
     size_t n = sizeof(int), readCnt;
@@ -18,7 +18,7 @@ char *findFirst(char *str, int isLetter) {
         wchar_t wc;
         readCnt = mbrtowc(&wc, cur, n, &state);
         if (readCnt == 0 || readCnt == (size_t)-1 || readCnt == (size_t)-2)
-		err("findFirst: mbrtowc failed");
+            err("findFirst: mbrtowc failed");
         if ((isLetter && iswalpha(wc)) || (!isLetter && !iswalpha(wc)))
             return cur;
     }
@@ -45,4 +45,3 @@ char *reduce(char *key, char **vals, int valsLen) {
     snprintf(str, (len + 1) * sizeof(char), "%d", valsLen);
     return str;
 }
-
