@@ -1,4 +1,4 @@
 #!/usr/bin/bash
-clang -O2 -Wall -Werror -std=c11 \
-    -fsanitize=address -Wno-declaration-after-statement \
-    src/main/mrsequential.c src/mr/mr.c src/apps/wc.c -o mrsequential
+mkdir -p bin/
+clang -O2 -Wall -Werror -Wpedantic -fsanitize=$2 \
+    src/main/mrsequential.c src/mr/mr.c src/apps/$1.c -o bin/mrsequential
