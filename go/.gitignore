@@ -1,1 +1,5 @@
 mr-tmp
+*.so
+src/main/mrsequential
+src/main/mrcoordinator
+src/main/mrworker
