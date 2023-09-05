@@ -1,6 +1,8 @@
 all:
-	./build.sh
+	./build.sh $(APP) $(FSANITIZE)
+test:
+	./test.sh
 format:
-	clang-format -i -style=Google src/*/*.c src/*/*.h
+	clang-format -i -style="{BasedOnStyle: google, IndentWidth: 4}" src/*/*.c src/*/*.h
 clean:
-	rm mrsequential
+	rm -rf mr-tmp bin perf*
