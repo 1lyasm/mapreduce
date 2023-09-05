@@ -2,8 +2,8 @@
 #define MR_H
 
 typedef struct {
-  char *k;
-  char *v;
+    char *k;
+    char *v;
 } Kv;
 
 Kv *allocKv(int kLen, int vLen);
@@ -12,9 +12,9 @@ void printKv(Kv *kv);
 void freeKv(Kv *kv);
 
 typedef struct {
-  Kv **data;
-  int len;
-  int size;
+    Kv **data;
+    int len;
+    int size;
 } Kva;
 
 Kva *allocKva(void);
@@ -23,7 +23,7 @@ void addKv(Kva *kva, Kv *kv);
 void printKva(Kva *kva);
 void freeKva(Kva *kva);
 
-Kva *map(char *fName, char *str);
+void map(char *fName, char *str, Kva *kva);
 char *reduce(char *key, char **vals, int valsLen);
 
 #endif
