@@ -51,7 +51,6 @@ type Coordinator struct {
 	muRedCnt sync.Mutex
 	redCnt   int
 	fCnt     int
-	muKf     sync.Mutex
 }
 
 func (c *Coordinator) server() {
