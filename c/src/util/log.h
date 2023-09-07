@@ -4,9 +4,13 @@
 #define LOG
 
 #ifdef LOG
-#define log(x) x
+#define log(x)   \
+    printTime(); \
+    x
 #else
 #define log(x)
 #endif
+
+void printTime();
 
 #endif
