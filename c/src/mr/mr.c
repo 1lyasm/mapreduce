@@ -1,8 +1,9 @@
+#include "mr.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "mr.h"
 #include "../util/err.h"
 
 Kv *allocKv(int kLen, int vLen) {
