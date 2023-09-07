@@ -72,7 +72,7 @@ func combine(kva []KeyValue) *map[string][]string {
 }
 
 func doMap(f string, mapf func(string, string) []KeyValue,
-	nRed int, tNum int) *map[string]string {
+	nRed int, tNum int) {
 	log.Printf("doMap: f: %s", f)
 	bytes, e := os.ReadFile(f)
 	if e != nil {
@@ -85,13 +85,11 @@ func doMap(f string, mapf func(string, string) []KeyValue,
 			Fail("doMap: os.Create", e)
 		}
 	}
-	kfMap := make(map[string]string)
 	kvfMap := make(map[string][]KeyValue)
 	for _, kv := range kva {
 		redW := ihash(kv.Key) % nRed
 		intF := fmt.Sprintf("mr-%d-%d", tNum, redW)
 		kvfMap[intF] = append(kvfMap[intF], kv)
-		kfMap[kv.Key] = intF
 	}
 	for fName, kva := range kvfMap {
 		intF, e := os.Create(fName)
@@ -104,7 +102,6 @@ func doMap(f string, mapf func(string, string) []KeyValue,
 			Fail("doMap: enc.Encode", e)
 		}
 	}
-	return &kfMap
 }
 
 func read(kva *[]KeyValue, fName string) {
@@ -117,7 +114,7 @@ func read(kva *[]KeyValue, fName string) {
 }
 
 func doRed(redf func(string, []string) string, redNum int,
-	fCnt int, nRed int, kfMap *map[string]string) {
+	fCnt int, nRed int) {
 	log.Printf("doRed: redNum: %d", redNum)
 	f, e := os.Create(fmt.Sprintf("mr-out-%d", redNum))
 	if e != nil {
@@ -141,10 +138,8 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
 	redf func(string, []string) string, fCnt int) {
 	doneNum := -1
 	doneType := -1
-	var kfMap *map[string]string
 	for {
-		arg, rep := &GetTArg{DoneNum: doneNum, DoneType: doneType,
-			KfMap: kfMap}, GetTRep{}
+		arg, rep := &GetTArg{DoneNum: doneNum, DoneType: doneType}, GetTRep{}
 		_, e := call("Coordinator.GetT", arg, &rep)
 		if e != nil {
 			Fail("doTask: call", e)
@@ -158,9 +153,9 @@ func doTask(id int, nRed int, mapf func(string, string) []KeyValue,
 			continue
 		}
 		if rep.Type == TaskM {
-			kfMap = doMap(rep.File, mapf, nRed, rep.Num)
+			doMap(rep.File, mapf, nRed, rep.Num)
 		} else {
-			doRed(redf, rep.Num, fCnt, nRed, arg.KfMap)
+			doRed(redf, rep.Num, fCnt, nRed)
 		}
 		doneNum = rep.Num
 		doneType = rep.Type

@@ -27,7 +27,6 @@ type HbRep struct {
 type GetTArg struct {
 	DoneNum  int
 	DoneType int
-	KfMap    *map[string]string
 }
 
 type GetTRep struct {

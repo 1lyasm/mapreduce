@@ -51,7 +51,6 @@ type Coordinator struct {
 	muRedCnt sync.Mutex
 	redCnt   int
 	fCnt     int
-	kfMap    map[string]string
 	muKf     sync.Mutex
 }
 
@@ -206,12 +205,6 @@ func (c *Coordinator) GetT(arg *GetTArg, rep *GetTRep) error {
 			c.muRedCnt.Lock()
 			c.redCnt += 1
 			c.muRedCnt.Unlock()
-		} else {
-			c.muKf.Lock()
-			for k, f := range *arg.KfMap {
-				c.kfMap[k] = f
-			}
-			c.muKf.Unlock()
 		}
 		last := last(c.tasks.L, c.tasks.L[i].Type)
 		c.tasks.L[i] = c.tasks.L[last]
@@ -250,7 +243,6 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c.tasks.fill(files, nReduce)
 	c.workers = new(Workers)
 	c.nRed = nReduce
-	c.kfMap = make(map[string]string)
 	go c.clean()
 	go c.reassign()
 	c.server()
